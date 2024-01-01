@@ -42,42 +42,88 @@ class DataFrameUtils:
     def __repr__(self) -> str:
         return repr(self.df)
 
-    # TODO: Make data validation methods
-    @st.cache_data(hash_funcs={})
-    def get_section_nums(self, df: pd.DataFrame) -> list[int]:
-        sections = df.Section.unique().tolist()
+    @st.cache_data(hash_funcs={"__main__.DataFrameUtils": lambda x: hash(x.df)})
+    def get_section_nums(self) -> list[int]:
+        if not self.__is_student_dataframe(self.df):
+            raise ValueError(
+                "Error: 'Section' Info Not Found\n \
+                Data does not contain a column named 'Section' (case-sensitive). \
+                Please make sure you're using the right file or rename the column containing the section numbers to 'Section'."
+            )
+
+        sections = self.df.Section.unique().tolist()
         sections = [int(n) for n in sections]
         sections.sort()
+
         return sections
 
-    # @st.cache_data
-    # def get_section_df(df: pd.DataFrame, section_num: int) -> pd.DataFrame:
-    #     df = df.loc[(df.Section == section_num) & (df.Status == "Active")].sort_values(
-    #         by=["First Name"], ascending=True
-    #     )
-    #     df.reset_index(inplace=True)
-    #     return df
+    @st.cache_data(hash_funcs={"__main__.DataFrameUtils": lambda x: hash(x.df)})
+    def get_section_df(self, section_num: int) -> pd.DataFrame:
+        if not self.__is_student_dataframe(self.df):
+            raise ValueError(
+                "Error: 'Section' Info Not Found\n \
+                Data does not contain a column named 'Section' (case-sensitive). \
+                Please make sure you're using the right file or rename the column containing the section numbers to 'Section'."
+            )
 
-    # @st.cache_data
-    # def get_student_info(df: pd.DataFrame, include_email: bool) -> pd.DataFrame:
-    #     if include_email:
-    #         df = df[["First Name", "Last Name", "Email"]]
-    #         df["Email"] = df["Email"].str.lower().str.strip().str.replace(" ", "")
-    #     else:
-    #         df = df[["First Name", "Last Name"]]
+        filtered_df = self.df.loc[
+            (self.df.Section == section_num) & (self.df.Status == "Active")
+        ].sort_values(by=["First Name"], ascending=True)
+        filtered_df.reset_index(inplace=True)
 
-    #     df["First Name"] = df["First Name"].str.lower().str.strip().str.replace(" ", "")
-    #     df["Last Name"] = df["Last Name"].str.lower().str.strip().str.replace(" ", "")
-    #     return df
+        return filtered_df
 
-    # ## DataWriter Class
-    # @st.cache_data
-    # def convert_to_csv(df: pd.DataFrame) -> bytes:
-    #     return df.to_csv(index=False).encode("utf-8")
+    @st.cache_data(hash_funcs={"__main__.DataFrameUtils": lambda x: hash(x.df)})
+    def get_student_info(self, include_email: bool = True) -> pd.DataFrame:
+        if not self.__is_student_dataframe(self.df):
+            raise ValueError(
+                "Error: Not Student Data\n \
+                Data does not contain a column named 'Section' (case-sensitive). \
+                Please make sure you're using the right file or rename the column containing the section numbers to 'Section'."
+            )
 
-    # @st.cache_data
-    # def convert_to_excel(df: pd.DataFrame) -> None:
-    #     pass
+        if include_email:
+            stu_info_df = self.df[["First Name", "Last Name", "Email"]]
+            stu_info_df["Email"] = (
+                stu_info_df["Email"].str.lower().str.strip().str.replace(" ", "")
+            )
+        else:
+            stu_info_df = self.df[["First Name", "Last Name"]]
+
+        stu_info_df["First Name"] = (
+            stu_info_df["First Name"].str.lower().str.strip().str.replace(" ", "")
+        )
+        stu_info_df["Last Name"] = (
+            stu_info_df["Last Name"].str.lower().str.strip().str.replace(" ", "")
+        )
+        return stu_info_df
+
+    def __is_student_dataframe(self, df: pd.DataFrame) -> bool:
+        cols = [col.lower() for col in df.columns]
+
+        if "section" not in cols:
+            return False
+
+        return True
+
+    def __is_assessment_dataframe(self, df: pd.DataFrame) -> bool:
+        cols = [col.lower() for col in df.columns]
+
+        if "timestamp" not in cols:
+            return False
+
+        return True
+
+    @st.cache_data(hash_funcs={"__main__.DataFrameUtils": lambda x: hash(x.df)})
+    def convert_to_csv(self) -> bytes:
+        return self.df.to_csv(index=False).encode("utf-8")
+
+    @st.cache_data(hash_funcs={"__main__.DataFrameUtils": lambda x: hash(x.df)})
+    def convert_to_excel(self) -> None:
+        # TODO: Write to excel function
+        pass
+
+    # TODO: Make data validation methods
 
 
 class FileUtils:
