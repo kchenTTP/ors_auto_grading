@@ -42,8 +42,7 @@ class DataFrameUtils:
     def __repr__(self) -> str:
         return repr(self.df)
 
-    @st.cache_data(hash_funcs={"__main__.DataFrameUtils": lambda x: hash(x.df)})
-    def get_section_nums(self) -> list[int]:
+    def get_section_nums(self) -> list:
         if not self.__is_student_dataframe(self.df):
             raise ValueError(
                 "Error: 'Section' Info Not Found\n \
@@ -52,12 +51,10 @@ class DataFrameUtils:
             )
 
         sections = self.df.Section.unique().tolist()
-        sections = [int(n) for n in sections]
         sections.sort()
 
         return sections
 
-    @st.cache_data(hash_funcs={"__main__.DataFrameUtils": lambda x: hash(x.df)})
     def get_section_df(self, section_num: int) -> pd.DataFrame:
         if not self.__is_student_dataframe(self.df):
             raise ValueError(
@@ -69,11 +66,10 @@ class DataFrameUtils:
         filtered_df = self.df.loc[
             (self.df.Section == section_num) & (self.df.Status == "Active")
         ].sort_values(by=["First Name"], ascending=True)
-        filtered_df.reset_index(inplace=True)
+        self.__section_info_all = filtered_df.reset_index()
 
-        return filtered_df
+        return self.__section_info_all
 
-    @st.cache_data(hash_funcs={"__main__.DataFrameUtils": lambda x: hash(x.df)})
     def get_student_info(self, include_email: bool = True) -> pd.DataFrame:
         if not self.__is_student_dataframe(self.df):
             raise ValueError(
@@ -83,12 +79,12 @@ class DataFrameUtils:
             )
 
         if include_email:
-            stu_info_df = self.df[["First Name", "Last Name", "Email"]]
+            stu_info_df = self.__section_info_all[["First Name", "Last Name", "Email"]]
             stu_info_df["Email"] = (
                 stu_info_df["Email"].str.lower().str.strip().str.replace(" ", "")
             )
         else:
-            stu_info_df = self.df[["First Name", "Last Name"]]
+            stu_info_df = self.__section_info_all[["First Name", "Last Name"]]
 
         stu_info_df["First Name"] = (
             stu_info_df["First Name"].str.lower().str.strip().str.replace(" ", "")
@@ -114,11 +110,9 @@ class DataFrameUtils:
 
         return True
 
-    @st.cache_data(hash_funcs={"__main__.DataFrameUtils": lambda x: hash(x.df)})
     def convert_to_csv(self) -> bytes:
         return self.df.to_csv(index=False).encode("utf-8")
 
-    @st.cache_data(hash_funcs={"__main__.DataFrameUtils": lambda x: hash(x.df)})
     def convert_to_excel(self) -> None:
         # TODO: Write to excel function
         pass
@@ -143,58 +137,8 @@ class FileUtils:
         return self.__filename
 
     @st.cache_data(hash_funcs={"__main__.FileUtils": lambda x: hash(x.file.getvalue())})
-    def to_dataframe(self):
-        return pd.read_csv(self.__file)
-
-
-## File IO
-### DataReader Class
-# ! Alert: Swap with FileUtils Version
-@st.cache_data
-def read_csv(f: io.BytesIO) -> pd.DataFrame:
-    df = pd.read_csv(f)
-    return df
-
-
-@st.cache_data
-def get_section_nums(df: pd.DataFrame) -> list:
-    sections = df.Section.unique().tolist()
-    sections.sort()
-    return sections
-
-
-@st.cache_data
-def get_section_df(df: pd.DataFrame, section_num: int) -> pd.DataFrame:
-    df = df.loc[(df.Section == section_num) & (df.Status == "Active")].sort_values(
-        by=["First Name"], ascending=True
-    )
-    df.reset_index(inplace=True)
-    return df
-
-
-@st.cache_data
-def get_student_info(df: pd.DataFrame, include_email: bool) -> pd.DataFrame:
-    # TODO: Check if df is student info or assessment
-    if include_email:
-        df = df[["First Name", "Last Name", "Email"]]
-        df["Email"] = df["Email"].str.lower().str.strip().str.replace(" ", "")
-    else:
-        df = df[["First Name", "Last Name"]]
-
-    df["First Name"] = df["First Name"].str.lower().str.strip().str.replace(" ", "")
-    df["Last Name"] = df["Last Name"].str.lower().str.strip().str.replace(" ", "")
-    return df
-
-
-## DataWriter Class
-@st.cache_data
-def convert_to_csv(df: pd.DataFrame) -> bytes:
-    return df.to_csv(index=False).encode("utf-8")
-
-
-@st.cache_data
-def convert_to_excel(df: pd.DataFrame) -> None:
-    pass
+    def to_dataframe_utils(self):
+        return DataFrameUtils(pd.read_csv(self.__file))
 
 
 # STREAMLIT APP
@@ -224,9 +168,9 @@ with student_info_tab:
         st.subheader("Section Information")
         st.markdown(
             """
-                 Upload student information file here. Make sure all student information are correct before uploading or autograder may not work properly.\n
-                 > 💡 Toggle the "Use previously downloaded student info csv file" switch on in the sidebar to use the csv file you've downloaded from this page.
-                 """
+            Upload student information file here. Make sure all student information are correct before uploading or autograder may not work properly.\n
+            > 💡 Toggle the "Use previously downloaded student info csv file" switch on in the sidebar to use the csv file you've downloaded from this page.
+            """
         )
 
         student_file = st.file_uploader(
@@ -236,35 +180,54 @@ with student_info_tab:
         )
 
     if student_file is not None:
-        student_df = read_csv(student_file)
+        students = FileUtils(student_file)
+        student_data_utils = students.to_dataframe_utils()
 
-        sections_list = get_section_nums(student_df)
+        sections_list = student_data_utils.get_section_nums()
         section_num = st.selectbox(
             "Which section do you teach?", options=sections_list, index=None
         )
         st.divider()
 
-        # TODO: Add column_config and data validation
-        # TODO: Add progress bar
         if section_num is not None:
-            section_df = get_section_df(student_df, section_num)
-            student_df = get_student_info(section_df, include_email=True)
+            section_df = student_data_utils.get_section_df(section_num)
+            student_df = student_data_utils.get_student_info()
+            # *Important: Student Information Variable
             edited_student_df = st.data_editor(
                 student_df,
                 hide_index=False,
                 use_container_width=True,
                 num_rows="dynamic",
+                column_config={
+                    "firstname": st.column_config.TextColumn(
+                        "First Name",
+                        help="Student's first name",
+                        required=True,
+                        max_chars=50,
+                    ),
+                    "lastname": st.column_config.TextColumn(
+                        "Last Name",
+                        help="Student's last name",
+                        required=True,
+                        max_chars=50,
+                    ),
+                    "email": st.column_config.TextColumn(
+                        "Email",
+                        help="Student's email address",
+                        validate="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
+                    ),
+                },
             )
 
-            student_info_csv = convert_to_csv(edited_student_df)
+            student_info_csv_data = DataFrameUtils(edited_student_df).convert_to_csv()
+
             st.download_button(
                 label="Download student data as CSV",
-                data=student_info_csv,
-                file_name=f"ORS_section{section_num}_student_info.csv",
+                data=student_info_csv_data,
+                file_name=f"ORS_Section{section_num}_Student_Info.csv",
                 mime="text/csv",
                 type="primary",
             )
-            # TODO: Add Success after file downloaded
 
 
 ## Assessment AutoGrader
