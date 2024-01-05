@@ -230,7 +230,7 @@ for i, row in final_results.iterrows():
         print(row.timestamp)
 
 
-# Get everyones score -> Save to one single excel file
+# Get everyone's score -> Save to one single excel file
 pre_class_scores = []
 post_class_scores = []
 

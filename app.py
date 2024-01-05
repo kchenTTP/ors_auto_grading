@@ -1,38 +1,57 @@
-#  cSpell: ignore streamlit, dataframe, selectbox, pydantic, funcs
+#  cSpell: ignore streamlit, dataframe, selectbox, pydantic, funcs, configdict
 import io
-from pydantic import BaseModel, EmailStr, PastDate
+from typing import Optional
+import datetime
+from pydantic import BaseModel, ConfigDict, EmailStr
 import streamlit as st
 import pandas as pd
 
 
-# VARIABLES
-programs = ["Microsoft Word", "Microsoft Excel", "Microsoft PowerPoint"]
-programs_short = ["word", "excel", "ppt"]
-
-
 # FUNCTIONS & CLASSES
+class TooManyFilesError(ValueError):
+    pass
+
+
 class QuestionAnswerPair(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     question: str
     answer: str
 
 
 class AnswerKey(BaseModel):
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
     program: str
     questions_and_answers: list[QuestionAnswerPair]
 
 
 class Assessment(BaseModel):
-    software: str
-    timestamp: PastDate
-    score: float
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    program: str
+    timestamp: datetime.datetime
+    firstname: str
+    lastname: str
+    score: str
     response: list[QuestionAnswerPair]
 
 
 class Student(BaseModel):
-    name: str
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        arbitrary_types_allowed=True,
+    )
+
+    firstname: str
+    lastname: str
     email: EmailStr
-    tests: list[Assessment]
-    report: None  # TODO: File Object?
+    word: Optional[list[Assessment]] = []
+    excel: Optional[list[Assessment]] = []
+    ppt: Optional[list[Assessment]] = []
+    reports: Optional[
+        list[bytes]
+    ] = None  # TODO: File Object? Implement DataFrameUtils.convert_to_excel() first
 
 
 class DataFrameUtils:
@@ -45,7 +64,7 @@ class DataFrameUtils:
     def get_section_nums(self) -> list:
         if not self.__is_student_dataframe(self.df):
             raise ValueError(
-                "Error: 'Section' Info Not Found\n \
+                "'Section' Info Not Found\n \
                 Data does not contain a column named 'Section' (case-sensitive). \
                 Please make sure you're using the right file or rename the column containing the section numbers to 'Section'."
             )
@@ -58,7 +77,7 @@ class DataFrameUtils:
     def get_section_df(self, section_num: int) -> pd.DataFrame:
         if not self.__is_student_dataframe(self.df):
             raise ValueError(
-                "Error: 'Section' Info Not Found\n \
+                "'Section' Info Not Found\n \
                 Data does not contain a column named 'Section' (case-sensitive). \
                 Please make sure you're using the right file or rename the column containing the section numbers to 'Section'."
             )
@@ -73,7 +92,7 @@ class DataFrameUtils:
     def get_student_info(self, include_email: bool = True) -> pd.DataFrame:
         if not self.__is_student_dataframe(self.df):
             raise ValueError(
-                "Error: Not Student Data\n \
+                "Not Student Data\n \
                 Data does not contain a column named 'Section' (case-sensitive). \
                 Please make sure you're using the right file or rename the column containing the section numbers to 'Section'."
             )
@@ -92,7 +111,22 @@ class DataFrameUtils:
         stu_info_df["Last Name"] = (
             stu_info_df["Last Name"].str.lower().str.strip().str.replace(" ", "")
         )
+
         return stu_info_df
+
+    def get_student_object_list(self) -> list:
+        # TODO: Check if dataframe contains only 3 columns (firstname, lastname, email)
+        sol = []
+        for _, row in self.df.iterrows():
+            sol.append(
+                Student(
+                    firstname=row["First Name"],
+                    lastname=row["Last Name"],
+                    email=row["Email"],
+                )
+            )
+
+        return sol
 
     def __is_student_dataframe(self, df: pd.DataFrame) -> bool:
         cols = [col.lower() for col in df.columns]
@@ -117,13 +151,139 @@ class DataFrameUtils:
         # TODO: Write to excel function
         pass
 
-    # TODO: Make data validation methods
+    def get_q_a_list(self, q_a_row: pd.DataFrame) -> list[QuestionAnswerPair]:
+        q_a_list = []
+        for q, a in q_a_row.iterrows():
+            question = str(q)
+            answer = str(a)
+            if answer[0] == "=":
+                answer = "'" + answer
+            q_a_list.append(QuestionAnswerPair(question=question, answer=answer))
+
+        return q_a_list
+
+    def get_answer_key(self, program: str) -> AnswerKey:
+        if not self.__is_assessment_dataframe(self.df):
+            raise ValueError(
+                f"Not Assessment Data\n \
+                Data does not contain a column named Timestamp in provided columns (case-sensitive).\n \
+                {self.df.columns}\n \
+                Please make sure you're using the right file."
+            )
+
+        answer_row = (
+            self.df.loc[self.df.Score == "100 / 100"].tail(1).reset_index(drop=True)
+        )
+        answer_row = answer_row.iloc[:, 5:].T
+        q_a_list = self.get_q_a_list(answer_row)
+
+        return AnswerKey(program=program, questions_and_answers=q_a_list)
+
+    def to_assessment(self, program: str) -> Assessment:
+        timestamp = self.df["Timestamp"].to_list()[0]
+        firstname = self.df["First Name"].to_list()[0]
+        lastname = self.df["Last Name"].to_list()[0]
+        score = self.df["Score"].to_list()[0]
+        answer_row = self.df.iloc[:, 5:].T
+        response = self.get_q_a_list(answer_row)
+
+        return Assessment(
+            program=program,
+            timestamp=timestamp,
+            firstname=firstname,
+            lastname=lastname,
+            score=score,
+            response=response,
+        )
+
+    def filter_date(self, date: datetime.date or tuple or None) -> pd.DataFrame:
+        if not self.__is_assessment_dataframe(self.df):
+            raise ValueError(
+                f"Not Assessment Data\n \
+                Data does not contain a column named Timestamp in provided columns (case-sensitive).\n \
+                {self.df.columns}\n \
+                Please make sure you're using the right file."
+            )
+
+        self.df.Timestamp = pd.to_datetime(
+            self.df.Timestamp, format="%m/%d/%Y %H:%M:%S", errors="coerce"
+        )
+
+        return self.df[self.df["Timestamp"].dt.date >= date]
+
+    def filter_firstname(self, names: pd.DataFrame) -> pd.DataFrame:
+        if not self.__is_assessment_dataframe(self.df):
+            raise ValueError(
+                f"Not Assessment Data\n \
+                Data does not contain a column named Timestamp in provided columns (case-sensitive).\n \
+                {self.df.columns}\n \
+                Please make sure you're using the right file."
+            )
+
+        self.df["First Name"] = self.df["First Name"].str.strip().str.lower()
+        self.df["Last Name"] = self.df["Last Name"].str.strip().str.lower()
+        self.df["Email Address"] = self.df["Email Address"].str.strip().str.lower()
+        processed_df = self.df[self.df["First Name"].isin(names["First Name"])]
+        processed_df.reset_index(drop=True, inplace=True)
+
+        return processed_df
+
+    def filter_lastname(self, names: pd.DataFrame) -> pd.DataFrame:
+        if not self.__is_assessment_dataframe(self.df):
+            raise ValueError(
+                f"Not Assessment Data\n \
+                Data does not contain a column named Timestamp in provided columns (case-sensitive).\n \
+                {self.df.columns}\n \
+                Please make sure you're using the right file."
+            )
+
+        self.df["First Name"] = self.df["First Name"].str.strip().str.lower()
+        self.df["Last Name"] = self.df["Last Name"].str.strip().str.lower()
+        self.df["Email Address"] = self.df["Email Address"].str.strip().str.lower()
+        processed_df = self.df[self.df["Last Name"].isin(names["Last Name"])]
+        processed_df.reset_index(drop=True, inplace=True)
+
+        return processed_df
+
+    def filter_email(self, names: pd.DataFrame) -> pd.DataFrame:
+        if not self.__is_assessment_dataframe(self.df):
+            raise ValueError(
+                f"Not Assessment Data\n \
+                Data does not contain a column named Timestamp in provided columns (case-sensitive).\n \
+                {self.df.columns}\n \
+                Please make sure you're using the right file."
+            )
+
+        self.df["First Name"] = self.df["First Name"].str.strip().str.lower()
+        self.df["Last Name"] = self.df["Last Name"].str.strip().str.lower()
+        self.df["Email Address"] = self.df["Email Address"].str.strip().str.lower()
+        processed_df = self.df[self.df["Email Address"].isin(names["Email"])]
+        processed_df.reset_index(drop=True, inplace=True)
+
+        return processed_df
+
+    def get_student_grades(self) -> None:
+        # Preprocess student names
+
+        # Get assessment base on student info (name, email)
+        ## try getting data base on name
+
+        ## if no data, try getting base on email
+
+        ## if no data still, raise error
+        ## Fuzzy Name matching
+        pass
+
+    def error_message(self):
+        # Create custom error and message so I don't have to repeat myself in every single method
+        pass
 
 
 class FileUtils:
     def __init__(self, file: io.BytesIO) -> None:
         self.__file = file
         self.__filename = file.name
+        self._is_type = self.__check_file_purpose()
 
     def __repr__(self) -> str:
         return self.__filename
@@ -140,25 +300,130 @@ class FileUtils:
     def to_dataframe_utils(self):
         return DataFrameUtils(pd.read_csv(self.__file))
 
+    def __check_file_purpose(self):
+        if "word" in self.__filename.lower():
+            return "word"
+        if "excel" in self.__filename.lower():
+            return "excel"
+        if "powerpoint" in self.__filename.lower() or "ppt" in self.__filename.lower():
+            return "ppt"
+        return "info"
+
+
+def add_student_session_state():
+    if "section_num" not in st.session_state:
+        st.session_state["section_num"] = None
+    if "n_students" not in st.session_state:
+        st.session_state["n_students"] = None
+    if "student_df" not in st.session_state:
+        st.session_state["student_df"] = None
+    if "student_object_list" not in st.session_state:
+        st.session_state["student_object_list"] = None
+
+
+def clear_student_session_state():
+    st.session_state.section_num = None
+    st.session_state.n_students = None
+    st.session_state.student_df = None
+    st.session_state.student_object_list = None
+
+
+def add_assessment_session_state():
+    if "word_uploaded" not in st.session_state:
+        st.session_state["word_uploaded"] = False
+    if "excel_uploaded" not in st.session_state:
+        st.session_state["excel_uploaded"] = False
+    if "ppt_uploaded" not in st.session_state:
+        st.session_state["ppt_uploaded"] = False
+
+
+def clear_assessment_session_state():
+    st.session_state.word_uploaded = False
+    st.session_state.excel_uploaded = False
+    st.session_state.ppt_uploaded = False
+
+
+def display_student_info_hint(container):
+    container.info(
+        "Please select student information file to upload and select the section you are teaching."
+    )
+
+
+def display_assessment_info_hint(container):
+    container.info("Please select assessment files to upload and grade.")
+
 
 # STREAMLIT APP
-st.set_page_config(initial_sidebar_state="collapsed")
+st.set_page_config(initial_sidebar_state="expanded")
+
+if "MAX_ASSESSMENT_FILES" not in st.session_state:
+    st.session_state["MAX_ASSESSMENT_FILES"] = 3
+if "programs_dict" not in st.session_state:
+    st.session_state["programs_dict"] = {
+        "word": "Word",
+        "excel": "Excel",
+        "ppt": "PowerPoint",
+    }
+if "word_answer_key" not in st.session_state:
+    st.session_state["word_answer_key"] = None
+if "excel_answer_key" not in st.session_state:
+    st.session_state["excel_answer_key"] = None
+if "ppt_answer_key" not in st.session_state:
+    st.session_state["ppt_answer_key"] = None
+
+if "section_num" not in st.session_state:
+    st.session_state["section_num"] = None
+if "n_students" not in st.session_state:
+    st.session_state["n_students"] = None
+if "student_df" not in st.session_state:
+    st.session_state["student_df"] = None
+if "student_object_list" not in st.session_state:
+    st.session_state["student_object_list"] = None
+if "word_uploaded" not in st.session_state:
+    st.session_state["word_uploaded"] = False
+if "excel_uploaded" not in st.session_state:
+    st.session_state["excel_uploaded"] = False
+if "ppt_uploaded" not in st.session_state:
+    st.session_state["ppt_uploaded"] = False
+if "start_date" not in st.session_state:
+    st.session_state["start_date"] = datetime.datetime.today().replace(day=1)
+
 
 # SIDEBAR
 with st.sidebar:
-    st.header("Settings")
-    with st.form("settings_form", border=True):
-        st.subheader("Section Information")
-        use_saved_on = st.toggle("Use previously downloaded student info csv file")
+    st.header("Section Information")
+    student_info_placeholder = st.empty()
+    section_setting_container = st.container()
 
-        settings_saved = st.form_submit_button("Save")
+    if st.session_state.section_num is None:
+        display_student_info_hint(container=student_info_placeholder)
 
-    if settings_saved:
-        st.success("Settings Saved Successfully", icon="✅")
+    st.header("Assessment Information")
+    assessment_info_placeholder = st.empty()
+    assessment_setting_container = st.container()
+
+    if (
+        not st.session_state.word_uploaded
+        or not st.session_state.excel_uploaded
+        or not st.session_state.ppt_uploaded
+    ):
+        display_assessment_info_hint(container=assessment_info_placeholder)
+
+    start_date = assessment_setting_container.date_input(
+        "Select the starting date of current cohort.",
+        value=datetime.datetime(2023, 9, 1),  # .today().replace(day=1),
+        format="MM/DD/YYYY",
+    )
+    st.session_state.start_date = start_date
+
+    # Settings Menu to manipulate dataframe
+    st.button("Grade")
+    with st.empty():
+        st.write(st.session_state)
 
 
 # MAIN PAGE
-st.title("ORS Assessment AutoGrader")
+st.title(":rainbow[ORS Assessment AutoGrader]")
 
 student_info_tab, assessment_tab = st.tabs(["Section Information", "Assessment Grader"])
 
@@ -166,17 +431,10 @@ student_info_tab, assessment_tab = st.tabs(["Section Information", "Assessment G
 with student_info_tab:
     with st.container(border=True):
         st.subheader("Section Information")
-        st.markdown(
-            """
-            Upload student information file here. Make sure all student information are correct before uploading or autograder may not work properly.\n
-            > 💡 Toggle the "Use previously downloaded student info csv file" switch on in the sidebar to use the csv file you've downloaded from this page.
-            """
-        )
-
         student_file = st.file_uploader(
-            "Upload student information file here",
+            "Upload student information file here. Make sure all student information are correct before uploading or autograder may not work properly.\n\n \
+                Make sure there is a 'Section' and 'Status' column (case-sensitive)",
             type="csv",
-            label_visibility="hidden",
         )
 
     if student_file is not None:
@@ -184,15 +442,16 @@ with student_info_tab:
         student_data_utils = students.to_dataframe_utils()
 
         sections_list = student_data_utils.get_section_nums()
-        section_num = st.selectbox(
+        section_num = section_setting_container.selectbox(
             "Which section do you teach?", options=sections_list, index=None
         )
-        st.divider()
 
         if section_num is not None:
+            st.session_state.section_num = section_num
+
             section_df = student_data_utils.get_section_df(section_num)
             student_df = student_data_utils.get_student_info()
-            # *Important: Student Information Variable
+
             edited_student_df = st.data_editor(
                 student_df,
                 hide_index=False,
@@ -214,68 +473,163 @@ with student_info_tab:
                     "email": st.column_config.TextColumn(
                         "Email",
                         help="Student's email address",
-                        validate="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
+                        validate=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
                     ),
                 },
             )
 
-            student_info_csv_data = DataFrameUtils(edited_student_df).convert_to_csv()
+            st.session_state.student_df = DataFrameUtils(edited_student_df)
+            st.session_state.n_students = edited_student_df.shape[0]
 
-            st.download_button(
-                label="Download student data as CSV",
-                data=student_info_csv_data,
-                file_name=f"ORS_Section{section_num}_Student_Info.csv",
-                mime="text/csv",
-                type="primary",
-            )
+            student_info_placeholder.empty()
+            with student_info_placeholder.container(border=True):
+                st.markdown(f"__Section: {st.session_state.section_num}__")
+                st.markdown(f"__Total Students: {st.session_state.n_students}__")
+
+            student_object_list = st.session_state.student_df.get_student_object_list()
+            st.session_state.student_object_list = student_object_list
+            st.write(st.session_state.student_object_list)
+
+            # student_info_csv_data = DataFrameUtils(edited_student_df).convert_to_csv()
+
+            # st.download_button(
+            #     label="Download student data as CSV",
+            #     data=student_info_csv_data,
+            #     file_name=f"ORS_Section{section_num}_Student_Info.csv",
+            #     mime="text/csv",
+            #     type="primary",
+            # )
+    else:
+        clear_student_session_state()
+        display_student_info_hint(container=student_info_placeholder)
 
 
 ## Assessment AutoGrader
 with assessment_tab:
-    with st.container(border=True):
-        st.subheader("Upload Files")
-        uploaded_files = st.file_uploader(
-            "Upload assessment result files here",
-            type="csv",
-            accept_multiple_files=True,
-        )
+    assessment_test_upload_container = st.container(border=True)
+    assessment_df_display_placeholder = st.empty()
 
-    # if uploaded_files is not None:
-    #     n_files = len(uploaded_files)
+    assessment_test_upload_container.subheader("Assessment Files")
+    assessment_files = assessment_test_upload_container.file_uploader(
+        "Upload assessment result files here, make sure the name of the program is in the file name.\n\n \
+            Ex. 'Word' or 'Excel' or 'PowerPoint' (case-insensitive)",
+        type="csv",
+        accept_multiple_files=True,
+    )
 
-    #     with st.container(border=True):
-    #         st.subheader('Class Information')
-    #         student_data = st.selectbox('Select student information', options=[file.name for file in uploaded_files], index=None)
-    #         if uploaded_files:
-    #             section_num = st.number_input('Which section do you teach?', min_value=1, max_value=4, value=None)
+    if assessment_files is not None:
+        # Read File
+        n_files = len(assessment_files)
+        if n_files > st.session_state.MAX_ASSESSMENT_FILES:
+            raise TooManyFilesError(
+                f"Too many files uploaded. Please upload a maximum of {st.session_state.MAX_ASSESSMENT_FILES} assessment files."
+            )
 
-    #     ## Select Programs to grade
-    #     with st.container(border=True):
-    #         st.subheader('Select Programs')
-    #         # for p, ps in zip(programs, programs_short):
-    #         #     st.checkbox(f'{p}', key=f'select_{ps}')
-    #         select_word = st.checkbox(f':blue[Microsoft Word]', key='select_word')
-    #         select_excel = st.checkbox(f':green[Microsoft Excel]', key='select_excel')
-    #         select_ppt = st.checkbox(f':orange[Microsoft PowerPoint]', key='select_ppt')
+        assessment_file_utils_list = [FileUtils(file) for file in assessment_files]
 
-    #         if select_word:
-    #             word_name = st.selectbox('Select Word assessment data', options=[file.name for file in uploaded_files], index=None)
-    #         if select_excel:
-    #             excel_name = st.selectbox('Select Excel assessment data', options=[file.name for file in uploaded_files], index=None)
-    #         if select_ppt:
-    #             ppt_name = st.selectbox('Select PowerPoint assessment data', options=[file.name for file in uploaded_files], index=None)
+        program_idx_map = {}
+        program_df_utils_list = []
 
-    # ## Show Student Data
-    # if uploaded_files is not None:
-    #     st.write(uploaded_files)
-    #     for file in uploaded_files:
-    #         if select_word and file.name == word_name:
-    #             word_file = file
-    #             st.write(word_file)
-    #             st.write(type(word_file))
-    #             word_df = pd.read_csv(word_file)
-    #             st.dataframe(word_df)
-    #         if select_excel and file.name == excel_name:
-    #             excel_file = file
-    #         if select_ppt and file.name == ppt_name:
-    #             ppt_file = file
+        if assessment_files:
+            assessment_info_container = assessment_info_placeholder.container(
+                border=True
+            )
+            for i, f in enumerate(assessment_file_utils_list):
+                match f._is_type:
+                    case "word":
+                        st.session_state.word_uploaded = True
+                    case "excel":
+                        st.session_state.excel_uploaded = True
+                    case "ppt":
+                        st.session_state.ppt_uploaded = True
+                    case _:
+                        st.error(
+                            "File Not recognized: Please make sure 'Word' or 'Excel' or 'PowerPoint' is in the file name (case-insensitive)."
+                        )
+
+                st.subheader(st.session_state.programs_dict.get(f._is_type))
+
+                program_name = st.session_state.programs_dict.get(f._is_type)
+                program_idx_map[f._is_type] = i
+
+                program_df_util = f.to_dataframe_utils()
+                program_df_utils_list.append(program_df_util)
+
+                answer_key = program_df_util.get_answer_key(f._is_type)
+                match f._is_type:
+                    case "word":
+                        st.session_state.word_answer_key = answer_key
+                    case "excel":
+                        st.session_state.excel_answer_key = answer_key
+                    case "ppt":
+                        st.session_state.ppt_answer_key = answer_key
+
+                # filter dataframe base on start date
+                date_filtered_df_util = DataFrameUtils(
+                    program_df_util.filter_date(st.session_state.start_date)
+                )
+
+                # filter dataframe base on last name
+                if st.session_state.student_df is not None:
+                    lastname_filtered_df_util = DataFrameUtils(
+                        date_filtered_df_util.filter_lastname(
+                            st.session_state.student_df.df
+                        )
+                    )
+
+                    st.write(lastname_filtered_df_util.df)
+
+                    # TODO: filter sequentially using first name
+                    # filter dataframe base on first name
+                    # final_filtered_df_util = DataFrameUtils(
+                    #     lastname_filtered_df_util.filter_firstname(
+                    #         st.session_state.student_df.df
+                    #     )
+                    # )
+
+                    final_filtered_df_util = lastname_filtered_df_util
+
+                    for i, row in final_filtered_df_util.df.iterrows():
+                        assessment_util = DataFrameUtils(row.to_frame().T)
+                        assessment = assessment_util.to_assessment(program=f._is_type)
+
+                        for student in st.session_state.student_object_list:
+                            if (
+                                student.lastname == assessment.lastname
+                                and student.firstname == assessment.firstname
+                            ):
+                                match f._is_type:
+                                    case "word":
+                                        student.word.append(assessment)
+                                    case "excel":
+                                        student.excel.append(assessment)
+                                    case "ppt":
+                                        student.ppt.append(assessment)
+
+                assessment_info_container.markdown(f"__{program_name}__")
+
+            # TODO: Generate Report
+
+            # TODO: Display number of students graded
+
+        else:
+            clear_assessment_session_state()
+
+        # TODO: Display Results
+
+        # Display name mismatches
+        # Dataframe of grading summary
+        # Put individual students in a list inside the sidebar: DataFrame(Name, n_assessments, dates of assessments, grade)
+
+        # Display Student information
+        ## Name: Number of assessments
+
+        # Download Report
+    else:
+        display_assessment_info_hint(container=assessment_info_placeholder)
+
+    # TODO: Download button
+
+    st.write(st.session_state.student_object_list)
+
+# TODO: Third tab/Page for analysis
