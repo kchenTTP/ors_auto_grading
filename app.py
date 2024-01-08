@@ -7,7 +7,6 @@ import io
 import zipfile
 
 from typing import Optional
-import pydantic
 from pydantic import BaseModel, ConfigDict, EmailStr
 from dataclasses import dataclass
 

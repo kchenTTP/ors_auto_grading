@@ -29,7 +29,7 @@ Provide CSV file containing student information as well as assessment responses 
     - There should be one sheet for each Microsoft program if student have taken at least the pre-class assessments
     - Each sheet will have the questions on `column A`, answer key on `column B`, and all the assessments from `column C` onwards
     - `row 1` is the timestamp of each assessment, `row 2` is the score, and `row 3` onwards are the questions and responses
-13. Write a email template and send out email individually with the individual reports attached, or use mail merge to speed up the process
+13. Write an email template and send out emails individually with the individual reports attached, or use mail merge to speed up the process
 
 
 ## Issues (upcoming fixes):
