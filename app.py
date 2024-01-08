@@ -67,10 +67,8 @@ class Student(BaseModel):
     ppt: Optional[list[Assessment]] = []
 
     def generate_report(self):
-        # create dataframes
         report_dicts = []
 
-        st.write(self.firstname)
         if self.word:
             word_df = st.session_state.word_answer_key.dataframe
             for assess in self.word:
@@ -81,7 +79,6 @@ class Student(BaseModel):
                     "report": word_df,
                 }
             )
-            st.write(word_df)
 
         if self.excel:
             excel_df = st.session_state.excel_answer_key.dataframe
@@ -93,7 +90,6 @@ class Student(BaseModel):
                     "report": excel_df,
                 }
             )
-            st.write(excel_df)
 
         if self.ppt:
             ppt_df = st.session_state.ppt_answer_key.dataframe
@@ -105,9 +101,7 @@ class Student(BaseModel):
                     "report": ppt_df,
                 }
             )
-            st.write(ppt_df)
 
-        # write using pd.ExcelWriter()
         output = io.BytesIO()
         writer = pd.ExcelWriter(output, "xlsxwriter")
         for report in report_dicts:
@@ -242,7 +236,6 @@ class DataFrameUtils:
         df_for_answerkey = answer_row.copy()
         answer_row = answer_row.iloc[:, 5:].T
         q_a_list = self.get_q_a_list(answer_row)
-        st.write(q_a_list)
         df_for_answerkey.at[0, "Timestamp"] = "Answer Key"
         df_for_answerkey.at[0, "Score"] = np.nan
         df_for_answerkey = df_for_answerkey.drop(
@@ -366,7 +359,6 @@ class DataFrameUtils:
                             student.excel.append(assessment)
                         case "ppt":
                             student.ppt.append(assessment)
-
             assessments_list.append(assessment)
 
         return assessments_list
@@ -439,14 +431,10 @@ def create_zip_file(file_list: list[ExcelFileWrapper]) -> io.BytesIO:
     zip_buffer = io.BytesIO()
 
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for file in file_list:  # Add more files as needed
+        for file in file_list:
             zip_file.writestr(file.filename, file.data.getvalue())
 
     return zip_buffer
-
-
-def download_report_btn_callback():
-    pass
 
 
 # STREAMLIT APP
@@ -520,23 +508,17 @@ with st.sidebar:
 
     start_date = assessment_setting_container.date_input(
         "Select the starting date of current cohort.",
-        value=datetime.datetime(2023, 9, 1),  # .today().replace(day=1),
+        value=datetime.datetime.today().replace(day=1),
         format="MM/DD/YYYY",
     )
     st.session_state.start_date = start_date
 
-    # Settings Menu to manipulate dataframe
-    st.button("Grade")
-    with st.empty():
-        st.write(st.session_state)
 
-
-# MAIN PAGE
+# MAIN APP
 st.title(":rainbow[ORS Assessment AutoGrader]")
 
 student_info_tab, assessment_tab = st.tabs(["Section Information", "Assessment Grader"])
 
-## Student Information
 with student_info_tab:
     with st.container(border=True):
         st.subheader("Section Information")
@@ -597,7 +579,6 @@ with student_info_tab:
 
             student_object_list = st.session_state.student_df.get_student_object_list()
             st.session_state.student_object_list = student_object_list
-            st.write(st.session_state.student_object_list)
 
             # student_info_csv_data = DataFrameUtils(edited_student_df).convert_to_csv()
 
@@ -612,7 +593,6 @@ with student_info_tab:
         clear_student_session_state()
         display_student_info_hint(container=student_info_placeholder)
 
-## Assessment AutoGrader
 with assessment_tab:
     assessment_test_upload_container = st.container(border=True)
     assessment_df_display_placeholder = st.empty()
@@ -689,23 +669,25 @@ with assessment_tab:
                     )
 
                     final_filtered_df_util = lastname_filtered_df_util
-                    st.write(final_filtered_df_util.df)
-
-                    final_filtered_df_util.get_student_grades()
+                    edited_filtered_df = st.data_editor(
+                        final_filtered_df_util.df,
+                        hide_index=False,
+                        use_container_width=True,
+                        num_rows="dynamic",
+                    )
+                    edited_filtered_df_util = DataFrameUtils(edited_filtered_df)
+                    edited_filtered_df_util.get_student_grades()
 
                 assessment_info_container.markdown(f"__{program_name}__")
         else:
             clear_assessment_session_state()
 
         # TODO: Display Results
-
         # Display name mismatches
         # Dataframe of grading summary
         # Put individual students in a list inside the sidebar: DataFrame(Name, n_assessments, dates of assessments, grade)
-
         # Display Student information
         ## Name: Number of assessments
-
     else:
         display_assessment_info_hint(container=assessment_info_placeholder)
 
@@ -735,7 +717,5 @@ with assessment_tab:
             file_name=f"ORS_Section_{st.session_state.section_num}_All_Student_Report.zip",
             type="primary",
         )
-
-    # st.write(st.session_state.student_object_list)
 
 # TODO: Third tab/Page for analysis
