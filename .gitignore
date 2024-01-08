@@ -2,6 +2,7 @@
 TODO.md
 
 # Virtual environment
+requirements.txt
 env/
 
 # Datasets & outputs
