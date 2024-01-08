@@ -2,12 +2,18 @@
 TODO.md
 
 # Virtual environment
-requirements.txt
+environments.yml
 env/
 
 # Datasets & outputs
 data/
 output/
+
+# Jupyter Notebooks
+notebooks/
+
+# Script
+ors_grading_assessments_automation.py
 
 *.bundle.*
 lib/

@@ -7,6 +7,7 @@ import io
 import zipfile
 
 from typing import Optional
+import pydantic
 from pydantic import BaseModel, ConfigDict, EmailStr
 from dataclasses import dataclass
 
@@ -523,7 +524,7 @@ with student_info_tab:
     with st.container(border=True):
         st.subheader("Section Information")
         student_file = st.file_uploader(
-            "Upload student information file here. Make sure all student information are correct before uploading or autograder may not work properly.\n\n \
+            "Upload student information file here. Make sure all student information is correct before uploading or autograder may not work properly.\n\n \
                 Make sure there is a 'Section' and 'Status' column (case-sensitive)",
             type="csv",
         )
