@@ -1,15 +1,29 @@
-#  cSpell: ignore streamlit, dataframe, selectbox, pydantic, funcs, configdict
-import io
-from typing import Optional
+#  cSpell: ignore streamlit, dataframe, selectbox, pydantic, funcs, configdict, answerkey, iloc, iterrows
 import datetime
+
+import re
+
+import io
+import zipfile
+
+from typing import Optional
 from pydantic import BaseModel, ConfigDict, EmailStr
+from dataclasses import dataclass
+
 import streamlit as st
 import pandas as pd
+import numpy as np
 
 
 # FUNCTIONS & CLASSES
 class TooManyFilesError(ValueError):
     pass
+
+
+@dataclass
+class ExcelFileWrapper:
+    filename: str
+    data: io.BytesIO
 
 
 class QuestionAnswerPair(BaseModel):
@@ -23,6 +37,7 @@ class AnswerKey(BaseModel):
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     program: str
+    dataframe: pd.DataFrame
     questions_and_answers: list[QuestionAnswerPair]
 
 
@@ -34,6 +49,7 @@ class Assessment(BaseModel):
     firstname: str
     lastname: str
     score: str
+    dataframe: pd.DataFrame
     response: list[QuestionAnswerPair]
 
 
@@ -49,9 +65,60 @@ class Student(BaseModel):
     word: Optional[list[Assessment]] = []
     excel: Optional[list[Assessment]] = []
     ppt: Optional[list[Assessment]] = []
-    reports: Optional[
-        list[bytes]
-    ] = None  # TODO: File Object? Implement DataFrameUtils.convert_to_excel() first
+
+    def generate_report(self):
+        # create dataframes
+        report_dicts = []
+
+        st.write(self.firstname)
+        if self.word:
+            word_df = st.session_state.word_answer_key.dataframe
+            for assess in self.word:
+                word_df = pd.concat([word_df, assess.dataframe], axis=1)
+            report_dicts.append(
+                {
+                    "program": "word",
+                    "report": word_df,
+                }
+            )
+            st.write(word_df)
+
+        if self.excel:
+            excel_df = st.session_state.excel_answer_key.dataframe
+            for assess in self.excel:
+                excel_df = pd.concat([excel_df, assess.dataframe], axis=1)
+            report_dicts.append(
+                {
+                    "program": "excel",
+                    "report": excel_df,
+                }
+            )
+            st.write(excel_df)
+
+        if self.ppt:
+            ppt_df = st.session_state.ppt_answer_key.dataframe
+            for assess in self.ppt:
+                ppt_df = pd.concat([ppt_df, assess.dataframe], axis=1)
+            report_dicts.append(
+                {
+                    "program": "ppt",
+                    "report": ppt_df,
+                }
+            )
+            st.write(ppt_df)
+
+        # write using pd.ExcelWriter()
+        output = io.BytesIO()
+        writer = pd.ExcelWriter(output, "xlsxwriter")
+        for report in report_dicts:
+            report["report"].to_excel(writer, sheet_name=report["program"])
+
+        writer.close()
+
+        return ExcelFileWrapper(
+            filename=f"{self.firstname} {self.lastname}_report.xlsx",
+            data=output,
+        )
 
 
 class DataFrameUtils:
@@ -147,17 +214,15 @@ class DataFrameUtils:
     def convert_to_csv(self) -> bytes:
         return self.df.to_csv(index=False).encode("utf-8")
 
-    def convert_to_excel(self) -> None:
-        # TODO: Write to excel function
-        pass
-
     def get_q_a_list(self, q_a_row: pd.DataFrame) -> list[QuestionAnswerPair]:
         q_a_list = []
         for q, a in q_a_row.iterrows():
             question = str(q)
-            answer = str(a)
-            if answer[0] == "=":
-                answer = "'" + answer
+            answer = str(a.iloc[0])
+            pattern = r"^=[\w\W]+$"
+            if bool(re.match(pattern, answer)):
+                answer = "(" + answer + ")"
+
             q_a_list.append(QuestionAnswerPair(question=question, answer=answer))
 
         return q_a_list
@@ -174,10 +239,21 @@ class DataFrameUtils:
         answer_row = (
             self.df.loc[self.df.Score == "100 / 100"].tail(1).reset_index(drop=True)
         )
+        df_for_answerkey = answer_row.copy()
         answer_row = answer_row.iloc[:, 5:].T
         q_a_list = self.get_q_a_list(answer_row)
+        st.write(q_a_list)
+        df_for_answerkey.at[0, "Timestamp"] = "Answer Key"
+        df_for_answerkey.at[0, "Score"] = np.nan
+        df_for_answerkey = df_for_answerkey.drop(
+            ["Email Address", "First Name", "Last Name"], axis=1
+        )
+        df_for_answerkey.set_index("Timestamp", inplace=True)
+        df_for_answerkey = df_for_answerkey.T
 
-        return AnswerKey(program=program, questions_and_answers=q_a_list)
+        return AnswerKey(
+            program=program, dataframe=df_for_answerkey, questions_and_answers=q_a_list
+        )
 
     def to_assessment(self, program: str) -> Assessment:
         timestamp = self.df["Timestamp"].to_list()[0]
@@ -187,16 +263,25 @@ class DataFrameUtils:
         answer_row = self.df.iloc[:, 5:].T
         response = self.get_q_a_list(answer_row)
 
+        df_for_assessment = self.df.drop(
+            ["Email Address", "First Name", "Last Name"], axis=1
+        )
+        df_for_assessment.set_index("Timestamp", inplace=True)
+        df_for_assessment = df_for_assessment.T
+
         return Assessment(
             program=program,
             timestamp=timestamp,
             firstname=firstname,
             lastname=lastname,
             score=score,
+            dataframe=df_for_assessment,
             response=response,
         )
 
-    def filter_date(self, date: datetime.date or tuple or None) -> pd.DataFrame:
+    def filter_date(
+        self, date: datetime.date or tuple[datetime.date] or None
+    ) -> pd.DataFrame:
         if not self.__is_assessment_dataframe(self.df):
             raise ValueError(
                 f"Not Assessment Data\n \
@@ -262,17 +347,29 @@ class DataFrameUtils:
 
         return processed_df
 
-    def get_student_grades(self) -> None:
-        # Preprocess student names
+    def get_student_grades(self) -> list[Assessment]:
+        assessments_list = []
 
-        # Get assessment base on student info (name, email)
-        ## try getting data base on name
+        for _, row in self.df.iterrows():
+            assessment_util = DataFrameUtils(row.to_frame().T)
+            assessment = assessment_util.to_assessment(program=f._is_type)
 
-        ## if no data, try getting base on email
+            for student in st.session_state.student_object_list:
+                if (
+                    student.lastname == assessment.lastname
+                    and student.firstname == assessment.firstname
+                ):
+                    match f._is_type:
+                        case "word":
+                            student.word.append(assessment)
+                        case "excel":
+                            student.excel.append(assessment)
+                        case "ppt":
+                            student.ppt.append(assessment)
 
-        ## if no data still, raise error
-        ## Fuzzy Name matching
-        pass
+            assessments_list.append(assessment)
+
+        return assessments_list
 
     def error_message(self):
         # Create custom error and message so I don't have to repeat myself in every single method
@@ -310,17 +407,7 @@ class FileUtils:
         return "info"
 
 
-def add_student_session_state():
-    if "section_num" not in st.session_state:
-        st.session_state["section_num"] = None
-    if "n_students" not in st.session_state:
-        st.session_state["n_students"] = None
-    if "student_df" not in st.session_state:
-        st.session_state["student_df"] = None
-    if "student_object_list" not in st.session_state:
-        st.session_state["student_object_list"] = None
-
-
+# App Specific Functions
 def clear_student_session_state():
     st.session_state.section_num = None
     st.session_state.n_students = None
@@ -328,19 +415,14 @@ def clear_student_session_state():
     st.session_state.student_object_list = None
 
 
-def add_assessment_session_state():
-    if "word_uploaded" not in st.session_state:
-        st.session_state["word_uploaded"] = False
-    if "excel_uploaded" not in st.session_state:
-        st.session_state["excel_uploaded"] = False
-    if "ppt_uploaded" not in st.session_state:
-        st.session_state["ppt_uploaded"] = False
-
-
 def clear_assessment_session_state():
     st.session_state.word_uploaded = False
     st.session_state.excel_uploaded = False
     st.session_state.ppt_uploaded = False
+    st.session_state.word_graded = False
+    st.session_state.excel_graded = False
+    st.session_state.ppt_graded = False
+    st.session_state.zip_file = None
 
 
 def display_student_info_hint(container):
@@ -351,6 +433,20 @@ def display_student_info_hint(container):
 
 def display_assessment_info_hint(container):
     container.info("Please select assessment files to upload and grade.")
+
+
+def create_zip_file(file_list: list[ExcelFileWrapper]) -> io.BytesIO:
+    zip_buffer = io.BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for file in file_list:  # Add more files as needed
+            zip_file.writestr(file.filename, file.data.getvalue())
+
+    return zip_buffer
+
+
+def download_report_btn_callback():
+    pass
 
 
 # STREAMLIT APP
@@ -379,14 +475,27 @@ if "student_df" not in st.session_state:
     st.session_state["student_df"] = None
 if "student_object_list" not in st.session_state:
     st.session_state["student_object_list"] = None
+
 if "word_uploaded" not in st.session_state:
     st.session_state["word_uploaded"] = False
 if "excel_uploaded" not in st.session_state:
     st.session_state["excel_uploaded"] = False
 if "ppt_uploaded" not in st.session_state:
     st.session_state["ppt_uploaded"] = False
+
+if "word_graded" not in st.session_state:
+    st.session_state["word_graded"] = False
+if "excel_graded" not in st.session_state:
+    st.session_state["excel_graded"] = False
+if "ppt_graded" not in st.session_state:
+    st.session_state["ppt_graded"] = False
+
+
 if "start_date" not in st.session_state:
     st.session_state["start_date"] = datetime.datetime.today().replace(day=1)
+
+if "zip_file" not in st.session_state:
+    st.session_state["zip_file"] = None
 
 
 # SIDEBAR
@@ -503,7 +612,6 @@ with student_info_tab:
         clear_student_session_state()
         display_student_info_hint(container=student_info_placeholder)
 
-
 ## Assessment AutoGrader
 with assessment_tab:
     assessment_test_upload_container = st.container(border=True)
@@ -559,10 +667,13 @@ with assessment_tab:
                 match f._is_type:
                     case "word":
                         st.session_state.word_answer_key = answer_key
+                        st.session_state.word_graded = True
                     case "excel":
                         st.session_state.excel_answer_key = answer_key
+                        st.session_state.excel_graded = True
                     case "ppt":
                         st.session_state.ppt_answer_key = answer_key
+                        st.session_state.ppt_graded = True
 
                 # filter dataframe base on start date
                 date_filtered_df_util = DataFrameUtils(
@@ -577,41 +688,12 @@ with assessment_tab:
                         )
                     )
 
-                    st.write(lastname_filtered_df_util.df)
-
-                    # TODO: filter sequentially using first name
-                    # filter dataframe base on first name
-                    # final_filtered_df_util = DataFrameUtils(
-                    #     lastname_filtered_df_util.filter_firstname(
-                    #         st.session_state.student_df.df
-                    #     )
-                    # )
-
                     final_filtered_df_util = lastname_filtered_df_util
+                    st.write(final_filtered_df_util.df)
 
-                    for i, row in final_filtered_df_util.df.iterrows():
-                        assessment_util = DataFrameUtils(row.to_frame().T)
-                        assessment = assessment_util.to_assessment(program=f._is_type)
-
-                        for student in st.session_state.student_object_list:
-                            if (
-                                student.lastname == assessment.lastname
-                                and student.firstname == assessment.firstname
-                            ):
-                                match f._is_type:
-                                    case "word":
-                                        student.word.append(assessment)
-                                    case "excel":
-                                        student.excel.append(assessment)
-                                    case "ppt":
-                                        student.ppt.append(assessment)
+                    final_filtered_df_util.get_student_grades()
 
                 assessment_info_container.markdown(f"__{program_name}__")
-
-            # TODO: Generate Report
-
-            # TODO: Display number of students graded
-
         else:
             clear_assessment_session_state()
 
@@ -624,12 +706,36 @@ with assessment_tab:
         # Display Student information
         ## Name: Number of assessments
 
-        # Download Report
     else:
         display_assessment_info_hint(container=assessment_info_placeholder)
 
-    # TODO: Download button
+    generate_report_btn_placeholder = st.empty()
 
-    st.write(st.session_state.student_object_list)
+    if (
+        st.session_state.word_graded is True
+        or st.session_state.excel_graded is True
+        or st.session_state.ppt_graded is True
+    ):
+        generate_btn_clicked = generate_report_btn_placeholder.button("Create Report")
+
+        if generate_btn_clicked:
+            student_reports = [
+                student.generate_report()
+                for student in st.session_state.student_object_list
+            ]  # List of ExcelFileWrapper class
+            # TODO: Create all student list
+            section_report = ...
+
+            st.session_state.zip_file = create_zip_file(student_reports)
+
+    if st.session_state.zip_file is not None:
+        generate_report_btn_placeholder.download_button(
+            label="Download Reports",
+            data=st.session_state.zip_file.getvalue(),
+            file_name=f"ORS_Section_{st.session_state.section_num}_All_Student_Report.zip",
+            type="primary",
+        )
+
+    # st.write(st.session_state.student_object_list)
 
 # TODO: Third tab/Page for analysis
