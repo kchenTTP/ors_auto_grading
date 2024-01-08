@@ -16,7 +16,7 @@ Bottleneck @ file:///Users/builder/cbouss/perseverance-python-buildout/croot/bot
 Brotli @ file:///Users/builder/cbouss/perseverance-python-buildout/croot/brotli-split_1699237319520/work
 cached-property @ file:///tmp/build/80754af9/cached-property_1600785575025/work
 cachetools==5.3.2
-certifi @ file:///home/conda/feedstock_root/build_artifacts/certifi_1700303426725/work/certifi
+certifi @ file:///Users/builder/cbouss/perseverance-python-buildout/croot/certifi_1701805090354/work/certifi
 cffi @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_b4nang6w_y/croot/cffi_1700254307954/work
 charset-normalizer @ file:///home/conda/feedstock_root/build_artifacts/charset-normalizer_1698833585322/work
 click==8.1.7
@@ -37,8 +37,8 @@ gitdb==4.0.11
 GitPython==3.1.40
 idna @ file:///home/conda/feedstock_root/build_artifacts/idna_1701026962277/work
 importlib-metadata @ file:///Users/builder/cbouss/perseverance-python-buildout/croot/importlib-metadata_1699241218990/work
-importlib-resources @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_ebz308u1rq/croot/importlib_resources-suite_1702931914010/work
-ipykernel @ file:///Users/runner/miniforge3/conda-bld/ipykernel_1698244280508/work
+importlib-resources @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_77lzrsh8mp/croot/importlib_resources-suite_1704281852961/work
+ipykernel @ file:///Users/runner/miniforge3/conda-bld/ipykernel_1703631823913/work
 ipython @ file:///home/conda/feedstock_root/build_artifacts/ipython_1701703101339/work
 isoduration @ file:///home/conda/feedstock_root/build_artifacts/isoduration_1638811571363/work/dist
 jedi @ file:///home/conda/feedstock_root/build_artifacts/jedi_1696326070614/work
@@ -62,12 +62,12 @@ matplotlib-inline @ file:///Users/builder/cbouss/perseverance-python-buildout/cr
 mdurl==0.1.2
 mistune @ file:///home/conda/feedstock_root/build_artifacts/mistune_1698947099619/work
 nbclient @ file:///Users/builder/cbouss/perseverance-python-buildout/croot/nbclient_1701803280377/work
-nbconvert @ file:///home/conda/feedstock_root/build_artifacts/nbconvert-meta_1703192573906/work
+nbconvert @ file:///home/conda/feedstock_root/build_artifacts/nbconvert-meta_1704158779767/work
 nbformat @ file:///Users/builder/cbouss/perseverance-python-buildout/croot/nbformat_1701803214283/work
 nest-asyncio @ file:///home/conda/feedstock_root/build_artifacts/nest-asyncio_1697083700168/work
 notebook_shim @ file:///home/conda/feedstock_root/build_artifacts/notebook-shim_1682360583588/work
 numexpr @ file:///Users/builder/cbouss/perseverance-python-buildout/croot/numexpr_1699237935415/work
-numpy @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_c0s16d4ba1/croot/numpy_and_numpy_base_1701295077539/work/dist/numpy-1.26.2-cp312-cp312-macosx_11_0_arm64.whl#sha256=3ef98b52001fc0e2266d3454005c31e553aa633ec4aaf3ac3aef67a63e51e807
+numpy @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_cfbbnu3tzv/croot/numpy_and_numpy_base_1704311724719/work/dist/numpy-1.26.3-cp312-cp312-macosx_11_0_arm64.whl#sha256=e066d59974be230052477e95f2633cdef4c4987c2f32c15291d3f4b184022bdc
 openpyxl @ file:///Users/builder/cbouss/perseverance-python-buildout/croot/openpyxl_1699284043691/work
 overrides @ file:///Users/builder/cbouss/perseverance-python-buildout/croot/overrides_1701803470591/work
 packaging @ file:///home/conda/feedstock_root/build_artifacts/packaging_1696202382185/work
@@ -80,7 +80,7 @@ Pillow==10.1.0
 pkgutil_resolve_name @ file:///home/conda/feedstock_root/build_artifacts/pkgutil-resolve-name_1694617248815/work
 platformdirs @ file:///home/conda/feedstock_root/build_artifacts/platformdirs_1701708255999/work
 prometheus-client @ file:///home/conda/feedstock_root/build_artifacts/prometheus_client_1700579315247/work
-prompt-toolkit @ file:///home/conda/feedstock_root/build_artifacts/prompt-toolkit_1699963054032/work
+prompt-toolkit @ file:///private/var/folders/k1/30mswbxs7r1g6zwn8y4fyt500000gp/T/abs_c63v4kqjzr/croot/prompt-toolkit_1704404354115/work
 protobuf==4.25.1
 psutil @ file:///Users/runner/miniforge3/conda-bld/psutil_1695367160695/work
 ptyprocess @ file:///tmp/build/80754af9/ptyprocess_1609355006118/work/dist/ptyprocess-0.7.0-py2.py3-none-any.whl
@@ -122,7 +122,7 @@ tomli @ file:///Users/builder/cbouss/perseverance-python-buildout/croot/tomli_16
 toolz==0.12.0
 tornado @ file:///Users/builder/cbouss/perseverance-python-buildout/croot/tornado_1699243541634/work
 traitlets @ file:///home/conda/feedstock_root/build_artifacts/traitlets_1701095650114/work
-types-python-dateutil @ file:///home/conda/feedstock_root/build_artifacts/types-python-dateutil_1689882883784/work
+types-python-dateutil @ file:///home/conda/feedstock_root/build_artifacts/types-python-dateutil_1704512562698/work
 typing-utils @ file:///home/conda/feedstock_root/build_artifacts/typing_utils_1622899189314/work
 typing_extensions @ file:///home/conda/feedstock_root/build_artifacts/typing_extensions_1695040754690/work
 tzdata @ file:///croot/python-tzdata_1690578112552/work
