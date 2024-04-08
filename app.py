@@ -1,25 +1,28 @@
 #  cSpell: ignore streamlit, dataframe, selectbox, pydantic, funcs, configdict, answerkey, iloc, iterrows
 import datetime
-
-import re
-
 import io
+import re
 import zipfile
-
-from typing import Optional
-from pydantic import BaseModel, ConfigDict, EmailStr
 from dataclasses import dataclass
+from typing import Optional
 
-import streamlit as st
-import pandas as pd
 import numpy as np
+import pandas as pd
+import streamlit as st
+from pydantic import BaseModel, ConfigDict, EmailStr
+
+from grader_utils.custom_errors import TooManyFilesError
+from grader_utils.file_io import create_zip_file
+from grader_utils.st_utils import (
+    clear_assessment_session_state,
+    clear_student_session_state,
+    display_assessment_info_hint,
+    display_student_info_hint,
+    set_st_session_state,
+)
 
 
 # FUNCTIONS & CLASSES
-class TooManyFilesError(ValueError):
-    pass
-
-
 @dataclass
 class ExcelFileWrapper:
     filename: str
@@ -61,7 +64,7 @@ class Student(BaseModel):
 
     firstname: str
     lastname: str
-    email: EmailStr
+    email: list[EmailStr]
     word: Optional[list[Assessment]] = []
     excel: Optional[list[Assessment]] = []
     ppt: Optional[list[Assessment]] = []
@@ -160,9 +163,7 @@ class DataFrameUtils:
 
         if include_email:
             stu_info_df = self.__section_info_all[["First Name", "Last Name", "Email"]]
-            stu_info_df["Email"] = (
-                stu_info_df["Email"].str.lower().str.strip().str.replace(" ", "")
-            )
+            stu_info_df["Email"] = stu_info_df["Email"].str.lower().str.strip().str.replace(" ", "")
         else:
             stu_info_df = self.__section_info_all[["First Name", "Last Name"]]
 
@@ -183,7 +184,7 @@ class DataFrameUtils:
                 Student(
                     firstname=row["First Name"],
                     lastname=row["Last Name"],
-                    email=row["Email"],
+                    email=row["Email"].split(","),
                 )
             )
 
@@ -230,9 +231,7 @@ class DataFrameUtils:
                 Please make sure you're using the right file."
             )
 
-        answer_row = (
-            self.df.loc[self.df.Score == "100 / 100"].tail(1).reset_index(drop=True)
-        )
+        answer_row = self.df.loc[self.df.Score == "100 / 100"].tail(1).reset_index(drop=True)
         df_for_answerkey = answer_row.copy()
         answer_row = answer_row.iloc[:, 5:].T
         q_a_list = self.get_q_a_list(answer_row)
@@ -256,9 +255,7 @@ class DataFrameUtils:
         answer_row = self.df.iloc[:, 5:].T
         response = self.get_q_a_list(answer_row)
 
-        df_for_assessment = self.df.drop(
-            ["Email Address", "First Name", "Last Name"], axis=1
-        )
+        df_for_assessment = self.df.drop(["Email Address", "First Name", "Last Name"], axis=1)
         df_for_assessment.set_index("Timestamp", inplace=True)
         df_for_assessment = df_for_assessment.T
 
@@ -272,9 +269,7 @@ class DataFrameUtils:
             response=response,
         )
 
-    def filter_date(
-        self, date: datetime.date or tuple[datetime.date] or None
-    ) -> pd.DataFrame:
+    def filter_date(self, date: datetime.date or tuple[datetime.date] or None) -> pd.DataFrame:
         if not self.__is_assessment_dataframe(self.df):
             raise ValueError(
                 f"Not Assessment Data\n \
@@ -399,91 +394,10 @@ class FileUtils:
         return "info"
 
 
-# App Specific Functions
-def clear_student_session_state():
-    st.session_state.section_num = None
-    st.session_state.n_students = None
-    st.session_state.student_df = None
-    st.session_state.student_object_list = None
-
-
-def clear_assessment_session_state():
-    st.session_state.word_uploaded = False
-    st.session_state.excel_uploaded = False
-    st.session_state.ppt_uploaded = False
-    st.session_state.word_graded = False
-    st.session_state.excel_graded = False
-    st.session_state.ppt_graded = False
-    st.session_state.zip_file = None
-
-
-def display_student_info_hint(container):
-    container.info(
-        "Please select student information file to upload and select the section you are teaching."
-    )
-
-
-def display_assessment_info_hint(container):
-    container.info("Please select assessment files to upload and grade.")
-
-
-def create_zip_file(file_list: list[ExcelFileWrapper]) -> io.BytesIO:
-    zip_buffer = io.BytesIO()
-
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for file in file_list:
-            zip_file.writestr(file.filename, file.data.getvalue())
-
-    return zip_buffer
-
-
 # STREAMLIT APP
 st.set_page_config(initial_sidebar_state="expanded")
 
-if "MAX_ASSESSMENT_FILES" not in st.session_state:
-    st.session_state["MAX_ASSESSMENT_FILES"] = 3
-if "programs_dict" not in st.session_state:
-    st.session_state["programs_dict"] = {
-        "word": "Word",
-        "excel": "Excel",
-        "ppt": "PowerPoint",
-    }
-if "word_answer_key" not in st.session_state:
-    st.session_state["word_answer_key"] = None
-if "excel_answer_key" not in st.session_state:
-    st.session_state["excel_answer_key"] = None
-if "ppt_answer_key" not in st.session_state:
-    st.session_state["ppt_answer_key"] = None
-
-if "section_num" not in st.session_state:
-    st.session_state["section_num"] = None
-if "n_students" not in st.session_state:
-    st.session_state["n_students"] = None
-if "student_df" not in st.session_state:
-    st.session_state["student_df"] = None
-if "student_object_list" not in st.session_state:
-    st.session_state["student_object_list"] = None
-
-if "word_uploaded" not in st.session_state:
-    st.session_state["word_uploaded"] = False
-if "excel_uploaded" not in st.session_state:
-    st.session_state["excel_uploaded"] = False
-if "ppt_uploaded" not in st.session_state:
-    st.session_state["ppt_uploaded"] = False
-
-if "word_graded" not in st.session_state:
-    st.session_state["word_graded"] = False
-if "excel_graded" not in st.session_state:
-    st.session_state["excel_graded"] = False
-if "ppt_graded" not in st.session_state:
-    st.session_state["ppt_graded"] = False
-
-
-if "start_date" not in st.session_state:
-    st.session_state["start_date"] = datetime.datetime.today().replace(day=1)
-
-if "zip_file" not in st.session_state:
-    st.session_state["zip_file"] = None
+set_st_session_state()
 
 
 # SIDEBAR
@@ -619,9 +533,7 @@ with assessment_tab:
         program_df_utils_list = []
 
         if assessment_files:
-            assessment_info_container = assessment_info_placeholder.container(
-                border=True
-            )
+            assessment_info_container = assessment_info_placeholder.container(border=True)
             for i, f in enumerate(assessment_file_utils_list):
                 match f._is_type:
                     case "word":
@@ -663,9 +575,7 @@ with assessment_tab:
                 # filter dataframe base on last name
                 if st.session_state.student_df is not None:
                     lastname_filtered_df_util = DataFrameUtils(
-                        date_filtered_df_util.filter_lastname(
-                            st.session_state.student_df.df
-                        )
+                        date_filtered_df_util.filter_lastname(st.session_state.student_df.df)
                     )
 
                     final_filtered_df_util = lastname_filtered_df_util
@@ -702,8 +612,7 @@ with assessment_tab:
 
         if generate_btn_clicked:
             student_reports = [
-                student.generate_report()
-                for student in st.session_state.student_object_list
+                student.generate_report() for student in st.session_state.student_object_list
             ]  # List of ExcelFileWrapper class
             # TODO: Create all student list
             section_report = ...

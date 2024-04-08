@@ -1,0 +1,2 @@
+class TooManyFilesError(ValueError):
+    pass

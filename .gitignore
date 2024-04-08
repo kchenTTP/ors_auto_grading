@@ -3,6 +3,7 @@ TODO.md
 
 # Virtual environment
 environments.yml
+environment.yml
 env/
 
 # Datasets & outputs
