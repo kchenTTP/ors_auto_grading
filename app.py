@@ -1,18 +1,15 @@
 #  cSpell: ignore streamlit, dataframe, selectbox, pydantic, funcs, configdict, answerkey, iloc, iterrows
 import datetime
-
-import re
-
 import io
+import re
 import zipfile
-
-from typing import Optional
-from pydantic import BaseModel, ConfigDict, EmailStr
 from dataclasses import dataclass
+from typing import Optional
 
-import streamlit as st
-import pandas as pd
 import numpy as np
+import pandas as pd
+import streamlit as st
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 
 # FUNCTIONS & CLASSES
@@ -61,7 +58,7 @@ class Student(BaseModel):
 
     firstname: str
     lastname: str
-    email: EmailStr
+    email: list[EmailStr]
     word: Optional[list[Assessment]] = []
     excel: Optional[list[Assessment]] = []
     ppt: Optional[list[Assessment]] = []
@@ -160,9 +157,7 @@ class DataFrameUtils:
 
         if include_email:
             stu_info_df = self.__section_info_all[["First Name", "Last Name", "Email"]]
-            stu_info_df["Email"] = (
-                stu_info_df["Email"].str.lower().str.strip().str.replace(" ", "")
-            )
+            stu_info_df["Email"] = stu_info_df["Email"].str.lower().str.strip().str.replace(" ", "")
         else:
             stu_info_df = self.__section_info_all[["First Name", "Last Name"]]
 
@@ -183,7 +178,7 @@ class DataFrameUtils:
                 Student(
                     firstname=row["First Name"],
                     lastname=row["Last Name"],
-                    email=row["Email"],
+                    email=row["Email"].split(","),
                 )
             )
 
@@ -230,9 +225,7 @@ class DataFrameUtils:
                 Please make sure you're using the right file."
             )
 
-        answer_row = (
-            self.df.loc[self.df.Score == "100 / 100"].tail(1).reset_index(drop=True)
-        )
+        answer_row = self.df.loc[self.df.Score == "100 / 100"].tail(1).reset_index(drop=True)
         df_for_answerkey = answer_row.copy()
         answer_row = answer_row.iloc[:, 5:].T
         q_a_list = self.get_q_a_list(answer_row)
@@ -256,9 +249,7 @@ class DataFrameUtils:
         answer_row = self.df.iloc[:, 5:].T
         response = self.get_q_a_list(answer_row)
 
-        df_for_assessment = self.df.drop(
-            ["Email Address", "First Name", "Last Name"], axis=1
-        )
+        df_for_assessment = self.df.drop(["Email Address", "First Name", "Last Name"], axis=1)
         df_for_assessment.set_index("Timestamp", inplace=True)
         df_for_assessment = df_for_assessment.T
 
@@ -272,9 +263,7 @@ class DataFrameUtils:
             response=response,
         )
 
-    def filter_date(
-        self, date: datetime.date or tuple[datetime.date] or None
-    ) -> pd.DataFrame:
+    def filter_date(self, date: datetime.date or tuple[datetime.date] or None) -> pd.DataFrame:
         if not self.__is_assessment_dataframe(self.df):
             raise ValueError(
                 f"Not Assessment Data\n \
@@ -619,9 +608,7 @@ with assessment_tab:
         program_df_utils_list = []
 
         if assessment_files:
-            assessment_info_container = assessment_info_placeholder.container(
-                border=True
-            )
+            assessment_info_container = assessment_info_placeholder.container(border=True)
             for i, f in enumerate(assessment_file_utils_list):
                 match f._is_type:
                     case "word":
@@ -663,9 +650,7 @@ with assessment_tab:
                 # filter dataframe base on last name
                 if st.session_state.student_df is not None:
                     lastname_filtered_df_util = DataFrameUtils(
-                        date_filtered_df_util.filter_lastname(
-                            st.session_state.student_df.df
-                        )
+                        date_filtered_df_util.filter_lastname(st.session_state.student_df.df)
                     )
 
                     final_filtered_df_util = lastname_filtered_df_util
@@ -702,8 +687,7 @@ with assessment_tab:
 
         if generate_btn_clicked:
             student_reports = [
-                student.generate_report()
-                for student in st.session_state.student_object_list
+                student.generate_report() for student in st.session_state.student_object_list
             ]  # List of ExcelFileWrapper class
             # TODO: Create all student list
             section_report = ...
