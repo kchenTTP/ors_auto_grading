@@ -1,6 +1,9 @@
 # Todo list
 TODO.md
 
+# Secrets
+secrets.toml
+
 # Virtual environment
 environments.yml
 env/
