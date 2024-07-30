@@ -11,6 +11,7 @@ env/
 # Datasets & outputs
 data/
 output/
+outputs/
 
 # Jupyter Notebooks
 notebooks/
