@@ -1,42 +1,40 @@
 import io
+import zipfile
 
 import pandas as pd
-import pytest
-from hydra import compose, initialize
 
-from app_utils.fileio import *
+from app_utils.fileio import ExcelWrapper, ExcelWriter, FileReader, ZipWriter
 
 
-def test_FileReader(hydra_cfg):
-    filepath = f"{hydra_cfg.path.data}/ORS Excel Assessment (Responses) - Form Responses 1.csv"
+def test_FileReader(sample_csv_buffer) -> None:
+    file_reader = FileReader(sample_csv_buffer)
+    buff_df = file_reader.to_df()
 
-    df = pd.read_csv(filepath)
-
-    bytes_buffer = io.BytesIO()
-    df.to_csv(bytes_buffer, index=False)
-    bytes_buffer.seek(0)
-
-    assert isinstance(bytes_buffer, io.BytesIO)
-
-    file_reader = FileReader(bytes_buffer)
-
-    assert isinstance(file_reader.to_df(), pd.DataFrame)
+    assert isinstance(buff_df, pd.DataFrame)
+    assert not buff_df.empty
 
 
-def test_ExcelWriter(hydra_cfg):
-    raise NotImplementedError
+def test_excel_writer_to_xlsx(sample_dataframe, hydra_cfg) -> None:
+    result = ExcelWriter(df=sample_dataframe).to_xlsx(filename=hydra_cfg.test.excel_filename)
+    filename = hydra_cfg.test.excel_filename
+
+    assert isinstance(result, ExcelWrapper)
+    assert result.filename == filename
+    assert isinstance(result.data, io.BytesIO)
+
+    df_read = pd.read_excel(result.data, index_col=False)
+    pd.testing.assert_frame_equal(df_read, sample_dataframe, check_dtype=False)
 
 
-def test_ZipWriter(hydra_cfg):
-    raise NotImplementedError
+def test_zip_writer(sample_excel_wrappers, hydra_cfg):
+    result = ZipWriter(sample_excel_wrappers).zip()
 
+    assert isinstance(result, io.BytesIO)
 
-def test_hydra(hydra_cfg):
-    assert hydra_cfg.path.data == "./data/raw"
+    with zipfile.ZipFile(result) as zip_file:
+        assert zip_file.namelist() == hydra_cfg.test.excel_wrapper_names
 
-
-@pytest.fixture(scope="session")
-def hydra_cfg():
-    with initialize(version_base=None, config_path="../conf"):
-        cfg = compose(config_name="config")
-    return cfg
+        # check file content
+        for excel_wrapper in sample_excel_wrappers:
+            with zip_file.open(excel_wrapper.filename) as f:
+                assert f.read() == excel_wrapper.data.getvalue()

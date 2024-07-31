@@ -33,7 +33,7 @@ class ExcelWriter:
     def to_xlsx(self, filename: str) -> ExcelWrapper:
         excel_buffer = io.BytesIO()
         writer = pd.ExcelWriter(excel_buffer, "xlsxwriter")
-        self.df.to_excel(writer, sheet_name="attempts")
+        self.df.to_excel(writer, sheet_name="attempts", index=False)
         writer.close()
 
         return ExcelWrapper(filename=filename, data=excel_buffer)
