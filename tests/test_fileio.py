@@ -3,15 +3,26 @@ import zipfile
 
 import pandas as pd
 
-from app_utils.fileio import ExcelWrapper, ExcelWriter, FileReader, ZipWriter
+from app_utils.fileio import (
+    ExcelWrapper,
+    ExcelWriter,
+    FileHandler,
+    FileReader,
+    ZipWriter,
+)
 
 
-def test_FileReader(sample_csv_buffer) -> None:
+def test_file_reader(sample_csv_buffer) -> None:
     file_reader = FileReader(sample_csv_buffer)
     buff_df = file_reader.to_df()
 
     assert isinstance(buff_df, pd.DataFrame)
     assert not buff_df.empty
+
+
+def test_file_handler():
+    handler = FileHandler(io.BytesIO())
+    raise NotImplementedError
 
 
 def test_excel_writer_to_xlsx(sample_dataframe, hydra_cfg) -> None:
