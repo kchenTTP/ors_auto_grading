@@ -30,6 +30,17 @@ def random_csv_file(hydra_cfg) -> str | bytes:
 
 
 @pytest.fixture(scope="session")
+def sample_files() -> list[io.BytesIO]:
+    file1 = io.BytesIO(b"name,age\nAlice,25\nBob,30")
+    file1.name = "student_info.csv"
+
+    file2 = io.BytesIO(b"name,score\nAlice,95\nBob,88")
+    file2.name = "assessment_results.csv"
+
+    return [file1, file2]
+
+
+@pytest.fixture(scope="session")
 def sample_csv_buffer(random_csv_file) -> io.BytesIO:
     df = pd.read_csv(random_csv_file)
     bytes_buffer = io.BytesIO()

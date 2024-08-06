@@ -6,6 +6,7 @@ file writer: take pandas df and create xlsx file and zip files
 import io
 import zipfile
 from dataclasses import dataclass
+from typing import Literal
 
 import pandas as pd
 import streamlit as st
@@ -35,30 +36,34 @@ class FileHandler:
         self.count = len(uploaded_file)
         self.filenames = self.get_filename()
 
-    def student_info(self):
-        # use FileReader to return df
-        raise NotImplementedError
+    def student_info(self) -> list[pd.DataFrame] | None:
+        fl = self.separate_file_group()
 
-    def test_results(self):
-        # use FileReader to return df
-        raise NotImplementedError
+        return [pd.read_csv(f) for f in fl["student_info"]] if fl else None
 
-    def get_filename(self):
+    def test_results(self) -> list[pd.DataFrame] | None:
+        fl = self.separate_file_group()
+
+        return [pd.read_csv(f) for f in fl["test_results"]] if fl else None
+
+    def get_filename(self) -> None | list[str]:
         if self.count < 1:
             return
 
         return [f.name for f in self._files]
 
-    def separate_file_group(self):
-        if not self.filenames:
+    def separate_file_group(
+        self,
+    ) -> dict[str, list[io.BytesIO]] | None:
+        if not self._files:
             return
 
         groups = {"test_results": [], "student_info": []}
-        for f in self.filenames:
+        for f in self._files:
             if "assessment" in f.name.lower() or "quiz" in f.name.lower():
-                groups["test_results"].append(f.name)
+                groups["test_results"].append(f)
             else:
-                groups["student_info"].append(f.name)
+                groups["student_info"].append(f)
 
         return groups
 

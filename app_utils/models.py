@@ -22,5 +22,8 @@ class Student(BaseModel):
     attempts: Assessment
 
 
-class Section(BaseModel):
-    students: list[Student]
+class SectionInfo(BaseModel):
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    section: int
+    data: pd.DataFrame
