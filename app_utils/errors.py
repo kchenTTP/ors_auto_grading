@@ -4,3 +4,11 @@ class TooManyFilesError(ValueError):
 
 class NoStudentInfoError(ValueError):
     pass
+
+
+class NoStudentEmailError(ValueError):
+    pass
+
+
+class IncorrectLoggingLevelError(ValueError):
+    pass

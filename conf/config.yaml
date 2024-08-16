@@ -6,6 +6,7 @@ dates:
 keywords:
   ors: ['ors']
   prc: ['prc', 'project code', 'phase']
+log_level: DEBUG
 test:
   excel_filename: 'test_excel_name.xlsx'
   excel_wrapper_names: ['file1.xlsx', 'file2.xlsx', 'file3.xlsx']

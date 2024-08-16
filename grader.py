@@ -11,7 +11,7 @@ import pandas as pd
 import streamlit as st
 from pydantic import BaseModel, ConfigDict, EmailStr
 
-from app_utils import dates, errors, fileio, logger, models, process, st_helper
+from app_utils import dates, errors, fileio, logging_config, models, process, st_helper
 
 
 # FUNCTIONS & CLASSES
