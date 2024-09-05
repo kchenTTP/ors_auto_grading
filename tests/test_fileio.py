@@ -20,6 +20,7 @@ def test_file_reader(sample_csv_buffer) -> None:
     assert not buff_df.empty
 
 
+# FIXME: sometimes fail test
 def test_excel_writer_to_xlsx(sample_dataframe, hydra_cfg) -> None:
     result = ExcelWriter(df=sample_dataframe).to_xlsx(filename=hydra_cfg.test.excel_filename)
     filename = hydra_cfg.test.excel_filename

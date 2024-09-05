@@ -1,3 +1,5 @@
+import datetime
+
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, EmailStr
 
@@ -27,3 +29,11 @@ class SectionInfo(BaseModel):
 
     section: int
     data: pd.DataFrame
+
+
+class FilterOptions(BaseModel):
+    by_name: bool
+    by_email: bool
+    by_section: bool
+    start_date: datetime.date
+    section: int | None

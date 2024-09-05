@@ -6,6 +6,13 @@ from .errors import NoStudentEmailError
 from .validators import InvalidEmail, ValidEmail, validate_single_email
 
 
+def get_section_number(df: pd.DataFrame) -> int | None:
+    try:
+        return int(df["Section"].mode(dropna=True)[0])
+    except Exception as _:
+        return None
+
+
 def process_multiple_email(df: pd.DataFrame) -> pd.DataFrame:
     email_col = None
 
